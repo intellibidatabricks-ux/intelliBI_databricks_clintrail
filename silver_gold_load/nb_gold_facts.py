@@ -14,6 +14,7 @@
 # MAGIC every run because the effective-dated join is deterministic.
 
 # COMMAND ----------
+
 from pyspark.sql import functions as F
 
 dbutils.widgets.text("entityName",   "fact_lab_result")
@@ -35,6 +36,7 @@ TARGET = f"{dbutils.widgets.get('tgtCatalog')}.{dbutils.widgets.get('tgtSchema')
 DIM_SUBJECT = f"{dbutils.widgets.get('tgtCatalog')}.{dbutils.widgets.get('tgtSchema')}.dim_subject"
 
 # COMMAND ----------
+
 # Carry exactly the target fact's columns, minus the ones Gold fills itself:
 # the fact's own IDENTITY key (<x>_sk), the resolved subject_sk, and gold_load_ts.
 MANAGED = {"subject_sk", "gold_load_ts"}
@@ -45,12 +47,14 @@ print(f"{entity}: {SOURCE} -> {TARGET}  eventDate={event_date}")
 print("carried:", carried)
 
 # COMMAND ----------
+
 # MAGIC %md ## Resolve subject_sk — effective-dated, NOT is_active
 # MAGIC Join each observation to the dim_subject VERSION that was active on the event
 # MAGIC date. Joining on `is_active = true` instead is the classic Gold bug: it
 # MAGIC attributes every historical result to the subject's CURRENT arm.
 
 # COMMAND ----------
+
 fct = spark.table(SOURCE).select(*carried)
 
 dim = (spark.table(DIM_SUBJECT)
@@ -67,18 +71,22 @@ out = (fct.join(dim, cond, "left")
           .withColumn("gold_load_ts", F.current_timestamp()))
 
 # COMMAND ----------
+
 # MAGIC %md ## Overwrite the fact
 
 # COMMAND ----------
+
 out.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(TARGET)
 
 # COMMAND ----------
+
 # MAGIC %md ## Verify — grain is unique, and no orphan observations
 # MAGIC An orphan (subject_sk IS NULL) means an observation whose subject has no
 # MAGIC dim_subject version covering the event date — usually a fact dated before the
 # MAGIC subject's first demographics record. Worth surfacing, not silently dropping.
 
 # COMMAND ----------
+
 res     = spark.table(TARGET)
 total   = res.count()
 unique  = res.select(*business_key).distinct().count()
@@ -90,4 +98,3 @@ if orphans:
     print(f"WARN: {orphans} fact rows did not resolve a subject_sk (event before first DM record?)")
 
 dbutils.notebook.exit(f"OK|{entity}|{total} rows|{orphans} orphans")
-

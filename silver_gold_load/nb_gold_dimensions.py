@@ -41,13 +41,17 @@ SCD_COLS = {"hash_diff", "start_effective_date", "end_effective_date",
 carried = [c for c in spark.table(TARGET).columns
            if c not in SCD_COLS and not c.endswith("_sk")]
 attrs   = [c for c in carried if c not in keys]   # non-key attributes
-
+# print("Total Columns: ",spark.table(TARGET).columns)
+# print("Carried Columns: ",carried)
+# print("Attributes: ",attrs)
 # hash_diff = one fingerprint of the attributes. Change detection = compare hashes.
 src = spark.table(SOURCE)
 src = src.withColumn("hash_diff",
     F.sha2(F.concat_ws("||", *[F.coalesce(F.col(c).cast("string"), F.lit("~")) for c in attrs]), 256))
 
 print(f"{SOURCE} -> {TARGET}  scd={scd_type}  keys={keys}")
+
+src.display()
 
 # COMMAND ----------
 
